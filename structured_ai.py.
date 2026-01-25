@@ -1,0 +1,44 @@
+import asyncio
+from openai import AsyncOpenAI
+from pydantic import BaseModel
+
+client = AsyncOpenAI(api_key="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")
+
+# 1. Создаем "форму" для ответа
+class PetName(BaseModel):
+    name: str
+    reason: str
+
+async def generate_name(animal: str):
+    print(f"⏳ Думаю над именем для: {animal}...")
+    
+    completion = await client.beta.chat.completions.parse(
+        model="gpt-4o-2024-08-06", # Нужна свежая модель для этой фишки
+        messages=[
+            {"role": "system", "content": "Ты помощник, который придумывает креативные имена."},
+            {"role": "user", "content": f"Придумай имя для {animal}."}
+        ],
+        response_format=PetName, # <--- МАГИЯ ЗДЕСЬ: Мы требуем заполнить эту форму
+    )
+    
+    # OpenAI сам превратил ответ в объект Python!
+    result = completion.choices.message.parsed
+    return result
+
+async def main():
+    # Генерируем параллельно
+    tasks = [
+        generate_name("кота-хакера"),
+        generate_name("собаки-космонавта"),
+        generate_name("попугая-пирата")
+    ]
+    
+    results = await asyncio.gather(*tasks)
+    
+    print("\n🏁 Итог (чистые данные):")
+    for item in results:
+        # Теперь мы можем обращаться к полям через точку, как в обычном коде!
+        print(f"Имя: {item.name} | Почему: {item.reason}")
+
+if __name__ == "__main__":
+    asyncio.run(main())

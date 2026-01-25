@@ -1,0 +1,80 @@
+import os
+from langchain_openai import ChatOpenAI
+from langchain_huggingface import HuggingFaceEmbeddings
+# Обратите внимание: новый импорт (если обновили пакет) или старый
+try:
+    from langchain_chroma import Chroma
+except ImportError:
+    from langchain_community.vectorstores import Chroma
+
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
+
+# Вставьте ключ
+api_key = "sk-..."
+
+# 1. ПОДКЛЮЧЕНИЕ К БАЗЕ
+embedding_function = HuggingFaceEmbeddings(model_name="paraphrase-multilingual-MiniLM-L12-v2")
+vectorstore = Chroma(
+    persist_directory="./chroma_db",
+    embedding_function=embedding_function,
+    collection_name="faq_kb"
+)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
+
+# 2. МОДЕЛЬ
+llm = ChatOpenAI(api_key=api_key, model="gpt-4o")
+
+# 3. НАСТРОЙКА ПАМЯТИ
+# Этот промпт нужен, чтобы переформулировать вопрос с учетом истории
+# (Например: "А если не помогло?" -> "Что делать, если сброс пароля не помог?")
+contextualize_q_system_prompt = """Учитывая историю чата и последний вопрос пользователя, 
+который может ссылаться на контекст, переформулируй его в самостоятельный вопрос, 
+который можно понять без истории. НЕ отвечай на вопрос, просто переформулируй его."""
+
+contextualize_q_prompt = ChatPromptTemplate.from_messages([
+    ("system", contextualize_q_system_prompt),
+    MessagesPlaceholder("chat_history"),
+    ("human", "{input}"),
+])
+
+# Создаем ретривер, который умеет работать с историей
+history_aware_retriever = create_history_aware_retriever(
+    llm, retriever, contextualize_q_prompt
+)
+
+# 4. ЦЕПОЧКА ОТВЕТА (QA Chain)
+qa_system_prompt = """Ты помощник по вопросам и ответам. 
+Используй следующие фрагменты контекста, чтобы ответить на вопрос. 
+Если не знаешь ответа, так и скажи. Отвечай кратко.
+
+{context}"""
+
+qa_prompt = ChatPromptTemplate.from_messages([
+    ("system", qa_system_prompt),
+    MessagesPlaceholder("chat_history"),
+    ("human", "{input}"),
+])
+
+question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
+rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
+
+# 5. ЗАПУСК ЦИКЛА
+chat_history = [] # Список для хранения переписки
+
+print("🤖 Умный Чат-бот готов! (Пишите 'exit' для выхода)")
+while True:
+    query = input("\n👤 Вы: ")
+    if query.lower() in ["exit", "выход"]:
+        break
+    
+    # Запуск цепочки
+    result = rag_chain.invoke({"input": query, "chat_history": chat_history})
+    
+    print(f"💬 Бот: {result['answer']}")
+    
+    # Сохраняем историю вручную (в реальных приложениях это делают базы данных)
+    chat_history.append(HumanMessage(content=query))
+    chat_history.append(AIMessage(content=result['answer']))
