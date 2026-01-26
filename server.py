@@ -1,4 +1,5 @@
 import uvicorn
+import os # ДОБАВЛЕНО: для работы с путями
 from fastapi import FastAPI
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -16,7 +17,12 @@ load_dotenv()
 
 # --- 1. Подготовка RAG (Копируем логику из smart_bot.py) ---
 print("⚙️  Загружаю сервер и базу знаний...")
-loader = TextLoader("faq.txt", encoding="utf-8")
+
+# ДОБАВЛЕНО: Умный поиск пути к файлу для Docker
+base_dir = os.path.dirname(os.path.abspath(__file__)) # Определяем папку, где лежит этот скрипт
+faq_path = os.path.join(base_dir, "faq.txt") # Соединяем путь с именем файла
+
+loader = TextLoader(faq_path, encoding="utf-8") # Используем полный путь
 documents = loader.load()
 text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=0)
 chunks = text_splitter.split_documents(documents)
@@ -24,7 +30,7 @@ chunks = text_splitter.split_documents(documents)
 vectorstore = Chroma.from_documents(
     documents=chunks,
     embedding=OpenAIEmbeddings(),
-    collection_name="techstore_faq_api" # Новое имя коллекции для API
+    collection_name="techstore_faq_api"
 )
 retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
 
@@ -45,7 +51,7 @@ rag_chain = (
 # --- 2. Настройка FastAPI ---
 app = FastAPI(title="TechStore AI Support")
 
-# Модель данных для запроса (что мы ждем от пользователя)
+# Модель данных для запроса
 class Question(BaseModel):
     text: str
 
@@ -57,5 +63,5 @@ def chat_endpoint(question: Question):
 
 # --- 3. Запуск ---
 if __name__ == "__main__":
-    # Запускаем сервер на порту 8000
+    # Убедись, что host="0.0.0.0", чтобы Render видел сервер
     uvicorn.run(app, host="0.0.0.0", port=8000)
