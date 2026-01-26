@@ -6,27 +6,27 @@ from langchain_core.output_parsers import StrOutputParser
 
 load_dotenv()
 
-# --- 1. Загружаем базу знаний ---
+# --- 1. Load the knowledge base ---
 try:
     with open("faq.txt", "r", encoding="utf-8") as f:
         faq_data = f.read()
 except FileNotFoundError:
-    print("Ошибка: Файл faq.txt не найден!")
+    print("Error: The file faq.txt was not found!")
     exit()
 
-# --- 2. Настраиваем Модель и Промпт ---
+# --- 2. Configure the Model and Prompt ---
 llm = ChatOpenAI(model="gpt-4o-mini")
 
-system_prompt = """Ты — вежливый сотрудник поддержки магазина техники 'TechStore'.
-Твоя задача — отвечать на вопросы клиентов, используя ТОЛЬКО предоставленную ниже базу знаний.
+system_prompt = """You are a polite support staff member of the electronics store 'TechStore'.
+Your task is to answer customer questions using ONLY the knowledge base provided below.
 
-База знаний:
+Knowledge base:
 {context}
 
-ВАЖНО:
-1. Если ответа нет в базе, отвечай: "К сожалению, у меня нет этой информации. Пожалуйста, свяжитесь с менеджером по телефону."
-2. Не придумывай условия, которых нет в тексте.
-3. Будь краток и дружелюбен.
+IMPORTANT:
+1. If the answer is not in the database, respond: "Unfortunately, I don't have that information. Please contact the manager by phone."
+2. Do not invent conditions that are not in the text.
+3. Be brief and friendly.
 """
 
 prompt = ChatPromptTemplate.from_messages([
@@ -34,19 +34,19 @@ prompt = ChatPromptTemplate.from_messages([
     ("user", "{question}")
 ])
 
-# Создаем цепочку: Промпт -> Модель -> Текст
+# Create the chain: Prompt -> Model -> Text
 chain = prompt | llm | StrOutputParser()
 
-# --- 3. Запуск чата ---
+# --- 3. Start the chat ---
 if __name__ == "__main__":
-    print("🤖 Бот поддержки TechStore готов! (Напишите 'выход' для завершения)\n")
+    print("🤖 TechStore support bot is ready! (Type 'exit' to quit)\n")
     
     while True:
-        user_input = input("Вы: ")
+        user_input = input("You: ")
         if user_input.lower() in ["выход", "exit", "quit"]:
-            print("Бот: До свидания!")
+            print("Bot: Goodbye!")
             break
             
-        # Запускаем цепочку, передавая базу знаний и вопрос
+        # Run the chain, passing the knowledge base and question
         response = chain.invoke({"context": faq_data, "question": user_input})
-        print(f"Бот: {response}\n")
+        print(f"Bot: {response}\n")

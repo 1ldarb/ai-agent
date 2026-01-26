@@ -11,11 +11,11 @@ from serpapi import GoogleSearch
 
 load_dotenv()
 
-# --- Инструмент 1: Поиск ---
+# --- Tool 1: Search ---
 @tool
 def search_google(query: str):
-    """Ищет список ссылок и новостей в Google. Возвращает сниппеты и ссылки."""
-    print(f"🕵️  Ищу в Google: {query}")
+    """Searches for a list of links and news on Google. Returns snippets and links."""
+    print(f"🕵️  Searching in Google: {query}")
     params = {
         "engine": "google",
         "q": query,
@@ -26,41 +26,41 @@ def search_google(query: str):
     
     organic_results = results.get("organic_results", [])
     output = []
-    # Берем топ-3 результата с ссылками
+    # Take the top-3 results with links
     for r in organic_results[:3]:
-        title = r.get("title", "Без заголовка")
+        title = r.get("title", "No title")
         link = r.get("link", "")
         snippet = r.get("snippet", "")
         output.append(f"Title: {title}\nLink: {link}\nSummary: {snippet}\n")
     
-    return "\n---\n".join(output) if output else "Ничего не найдено."
+    return "\n---\n".join(output) if output else "Nothing found."
 
-# --- Инструмент 2: Чтение сайта (НОВОЕ) ---
+# --- Tool 2: Webpage Reading (NEW) ---
 @tool
 def scrape_webpage(url: str):
-    """Читает полный текст веб-страницы по ссылке. Используй это, чтобы узнать детали."""
-    print(f"📖 Читаю статью: {url}")
+    """Reads the full text of a webpage from the link. Use this to get details."""
+    print(f"📖 Reading article: {url}")
     try:
-        # Притворяемся обычным браузером
+        # Pretending to be a regular browser
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=10)
         
         soup = BeautifulSoup(response.content, "html.parser")
         
-        # Удаляем скрипты и стили, оставляем только текст
+        # Removing scripts and styles, keeping only text
         for script in soup(["script", "style"]):
             script.extract()
             
         text = soup.get_text()
-        # Ограничиваем длину (чтобы не перегрузить модель), берем первые 8000 символов
-        return "Текст статьи:\n" + " ".join(text.split())[:8000]
+        # Limiting the length (to not overload the model), taking the first 8000 characters
+        return "Article text:\n" + " ".join(text.split())[:8000]
     except Exception as e:
-        return f"Ошибка при чтении: {e}"
+        return f"Error while reading: {e}"
 
-# --- Граф Агента ---
+# --- Agent Graph ---
 llm = ChatOpenAI(model="gpt-4o-mini")
 
-# ТЕПЕРЬ У АГЕНТА ДВА ИНСТРУМЕНТА:
+# NOW THE AGENT HAS TWO TOOLS:
 tools = [search_google, scrape_webpage] 
 
 llm_with_tools = llm.bind_tools(tools)
@@ -78,21 +78,21 @@ workflow.add_edge("tools", "agent")
 
 app = workflow.compile()
 
-# --- Запуск ---
+# --- Execution ---
 if __name__ == "__main__":
-    # Задаем тему исследования
-    query = "Собери информацию про GPT-5: предполагаемая дата выхода, новые функции и слухи. Сделай структурированный отчет."
-    print(f"🚀 Начинаю исследование: {query}\n")
+    # Setting the research topic
+    query = "Gather information about GPT-5: expected release date, new features and rumors. Make a structured report."
+    print(f"🚀 Starting research: {query}\n")
     
-    # Запускаем агента
+    # Running the agent
     final_state = app.invoke({"messages": [HumanMessage(content=query)]})
     report = final_state["messages"][-1].content
     
-    print("\n🤖 Результат:")
+    print("\n🤖 Result:")
     print(report)
     
-    # Сохраняем в файл
+    # Saving to file
     with open("report.md", "w", encoding="utf-8") as f:
-        f.write(f"# Отчет исследования\n\n**Тема:** {query}\n\n---\n\n{report}")
+        f.write(f"# Research Report\n\n**Topic:** {query}\n\n---\n\n{report}")
         
-    print("\n📄 Отчет успешно сохранен в файл 'report.md'!")
+    print("\n📄 Report successfully saved to 'report.md'!")
