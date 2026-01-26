@@ -1,61 +1,61 @@
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
-# Импортируем готовый граф из вашего прошлого файла
-# (Убедитесь, что в router_graph.py код создания графа не под "if __name__ == '__main__':")
-# Для простоты я скопирую нужную часть сюда, чтобы всё работало из коробки:
+from dotenv import load_dotenv
 
-from typing import TypedDict, Literal
-from langgraph.graph import StateGraph, END, START
-from langchain_openai import ChatOpenAI
-from langchain_core.messages import HumanMessage, SystemMessage
+# Импортируем "мозги" (LangChain компоненты)
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
+from langchain_community.document_loaders import TextLoader
+from langchain_text_splitters import CharacterTextSplitter
+from langchain_chroma import Chroma
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
 
-# --- НАСТРОЙКА ГРАФА (Как было) ---
-llm = ChatOpenAI(model="gpt-4o")
+load_dotenv()
 
-class State(TypedDict):
-    query: str
-    response: str
+# --- 1. Подготовка RAG (Копируем логику из smart_bot.py) ---
+print("⚙️  Загружаю сервер и базу знаний...")
+loader = TextLoader("faq.txt", encoding="utf-8")
+documents = loader.load()
+text_splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=0)
+chunks = text_splitter.split_documents(documents)
 
-def math_expert(state: State):
-    msg = [SystemMessage(content="Ты математик. Отвечай цифрами."), HumanMessage(content=state['query'])]
-    return {"response": llm.invoke(msg).content}
+vectorstore = Chroma.from_documents(
+    documents=chunks,
+    embedding=OpenAIEmbeddings(),
+    collection_name="techstore_faq_api" # Новое имя коллекции для API
+)
+retriever = vectorstore.as_retriever(search_kwargs={"k": 1})
 
-def writer_expert(state: State):
-    msg = [SystemMessage(content="Ты поэт."), HumanMessage(content=state['query'])]
-    return {"response": llm.invoke(msg).content}
+llm = ChatOpenAI(model="gpt-4o-mini")
+template = """Ответь на вопрос кратко, используя контекст:
+{context}
 
-def route_query(state: State) -> Literal["math", "writer"]:
-    # Упрощенная логика для скорости (или используйте LLM-классификатор из router_graph.py)
-    query = state['query'].lower()
-    if any(x in query for x in ["сколько", "умножь", "+", "-", "/"]):
-        return "math"
-    return "writer"
+Вопрос: {question}
+"""
+prompt = ChatPromptTemplate.from_template(template)
+rag_chain = (
+    {"context": retriever, "question": RunnablePassthrough()}
+    | prompt
+    | llm
+    | StrOutputParser()
+)
 
-builder = StateGraph(State)
-builder.add_node("math", math_expert)
-builder.add_node("writer", writer_expert)
-builder.add_conditional_edges(START, route_query, {"math": "math", "writer": "writer"})
-builder.add_edge("math", END)
-builder.add_edge("writer", END)
-agent_app = builder.compile()
+# --- 2. Настройка FastAPI ---
+app = FastAPI(title="TechStore AI Support")
 
-# --- ВЕБ-СЕРВЕР (FastAPI) ---
-app = FastAPI(title="AI Agent API")
-
-# Формат входных данных
-class Request(BaseModel):
-    query: str
+# Модель данных для запроса (что мы ждем от пользователя)
+class Question(BaseModel):
+    text: str
 
 @app.post("/chat")
-async def chat_endpoint(request: Request):
-    print(f"📨 Получен запрос: {request.query}")
-    # Запускаем граф
-    result = agent_app.invoke({"query": request.query})
-    return {"reply": result["response"]}
+def chat_endpoint(question: Question):
+    """Принимает вопрос, ищет ответ в базе и возвращает текст."""
+    response = rag_chain.invoke(question.text)
+    return {"answer": response}
 
-# Запуск: python server.py
+# --- 3. Запуск ---
 if __name__ == "__main__":
-    print("🚀 Сервер запускается на http://127.0.0.1:8000")
-    uvicorn.run(app, host="127.0.0.1", port=8000)
-
+    # Запускаем сервер на порту 8000
+    uvicorn.run(app, host="0.0.0.0", port=8000)
