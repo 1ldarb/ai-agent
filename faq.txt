@@ -1,14 +1,41 @@
-Q: Какие у вас условия доставки?
-A: Мы доставляем товары бесплатно при заказе от 5000 рублей. В остальных случаях доставка стоит 300 рублей. Срок доставки: 1-3 дня.
+# TECHSTORE US KNOWLEDGE BASE - OFFICIAL CUSTOMER FAQ
 
-Q: Как вернуть товар?
-A: Вы можете вернуть товар в течение 14 дней, если сохранена упаковка и чек. Напишите нам на support@techstore.com.
+## SECTION 1: SHIPPING & LOGISTICS (US NATIONWIDE)
+Q: Which US cities do you ship to?
+A: We provide fast shipping to all 50 states. Major hubs include New York City (NYC), Los Angeles (LA), Chicago, Houston, Phoenix, Philadelphia, and San Antonio.
 
-Q: Есть ли гарантия на ноутбуки?
-A: Да, на все ноутбуки действует гарантия 2 года от производителя.
+Q: What are the shipping rates for the Continental US?
+A: Standard ground shipping (3-7 business days) is FREE for orders over $50. For orders under $50, a flat rate of $9.99 applies. 
 
-Q: Где находится ваш офис?
-A: Наш главный офис находится по адресу: г. Москва, ул. Пушкина, д. 10, офис 205. Мы работаем с 9:00 до 20:00.
+Q: Do you offer expedited shipping to the West Coast?
+A: Yes, we offer Next-Day Air and 2-Day Priority shipping via FedEx and UPS to California, Oregon, and Washington state for an additional fee calculated at checkout.
 
-Q: Продаете ли вы товары в рассрочку?
-A: Да, мы сотрудничаем с Тинькофф и Сбером. Рассрочка доступна на срок до 12 месяцев без переплат.
+Q: Do you ship to Alaska, Hawaii, or Puerto Rico?
+A: Yes, though shipping times may vary (usually 7-14 business days). Please note that free shipping promotions may not apply to these regions.
+
+## SECTION 2: PAYMENTS, TAXES & FINANCING
+Q: What payment methods are accepted in the US?
+A: We accept all major US credit cards (Visa, Mastercard, Amex, Discover), as well as digital wallets like Apple Pay, Google Pay, and PayPal.
+
+Q: Can I pay using Venmo or Cash App?
+A: Yes, we support direct payments via Venmo and Cash App for mobile checkout users.
+
+Q: How is Sales Tax calculated?
+A: Sales tax is automatically calculated based on your shipping address and state regulations (e.g., NY, CA, TX). Taxes will be displayed at the final step of checkout.
+
+Q: Do you offer installment plans (Buy Now, Pay Later)?
+A: Yes, we partner with Affirm and Klarna to offer interest-free monthly installments for purchases over $500.
+
+## SECTION 3: RETURNS & WARRANTY
+Q: What is the US return policy?
+A: We offer a 30-day "No Questions Asked" return policy for all electronics. Items must be in original packaging. A 15% restocking fee may apply to opened high-end laptops.
+
+Q: How do I handle a warranty claim for a MacBook?
+A: All MacBooks come with a 1-year Apple limited warranty. You can take your device to any authorized Apple Store in cities like Miami, Boston, or Seattle, or mail it to our service center.
+
+## SECTION 4: CONTACT & SUPPORT
+Q: What are your customer service hours?
+A: Our support team is available Monday through Friday, 9:00 AM to 6:00 PM EST (Eastern Standard Time). 
+
+Q: How can I escalate my issue to a human manager?
+A: If this AI assistant (Ildar AI Hub) cannot fulfill your request, please type "Live Agent" or call our toll-free number at 1-800-TECH-USA.

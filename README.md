@@ -1,43 +1,63 @@
-# AI Support Bot (RAG) 🤖
+🕵️‍♂️ Ildar AI Hub: Advanced Multi-Agent Researcher & RAG System
+A professional AI ecosystem designed to demonstrate high-level engineering skills in Agentic Workflows and Retrieval-Augmented Generation (RAG). This project serves as a cornerstone of my transition into AI Development, showcasing a robust backend built with FastAPI and an interactive Streamlit frontend.
 
-A smart technical support bot built with **FastAPI**, **LangChain**, and **ChromaDB**.
+🚀 Core Agents
+1. Global AI Researcher (LangGraph)
 
-It uses **RAG (Retrieval-Augmented Generation)** to answer customer questions based strictly on a provided knowledge base (`faq.txt`), ensuring accurate and hallucination-free responses using OpenAI's models [4, 5].
+Architecture: A cyclic multi-agent graph that automates deep-web research.
 
-## 🚀 Features
-- **RAG Architecture:** Retrieves precise context from documents before answering.
-- **Vector Search:** Uses **ChromaDB** [1] and OpenAI Embeddings for semantic search (understands meaning, not just keywords).
-- **API Ready:** Built on **FastAPI** for easy integration with frontend apps or Telegram bots.
-- **Anti-Hallucination:** Strictly follows the provided documentation logic.
+Workflow: The Researcher agent gathers data via SerpApi, which is then cross-checked by a Reviewer agent to ensure factual accuracy and high synthesis quality.
 
-## 🛠️ Tech Stack
-- **Python 3.10+**
-- **LangChain** (Orchestration) [3]
-- **ChromaDB** (Vector Database) [2]
-- **OpenAI GPT-4o** (LLM) [5]
-- **FastAPI & Uvicorn** (Web Server)
+Stability: Implements custom rate-limiting and retry logic to handle high-token loads and API limits (Error 429) gracefully.
 
-## ⚙️ Installation & Setup
+2. Support Assistant (RAG + Pinecone)
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/your-username/ai-support-bot.git
-   cd ai-support-bot
-2. Install dependencies:
-3. Configure Environment: Create a .env file in the root directory and add your API key:
-4. Add Knowledge Base: Ensure faq.txt is in the root directory with your support content.
-5. Run the Server:
-6. The server will start at http://0.0.0.0:8000.
-🔌 API Usage
-Endpoint: POST /chat
+Technology: A specialized support bot using LangChain and Pinecone vector database.
+
+Context: Strictly follows a provided knowledge base (faq.txt) focused on the US market to provide hallucination-free responses regarding shipping, taxes, and local policies.
+
+Semantic Search: Uses OpenAI Embeddings (text-embedding-3-small) to understand user intent beyond simple keywords.
+
+🛠️ Tech Stack
+Category	Technology
+Orchestration	LangChain & LangGraph
+Vector Database	Pinecone (Cloud-native)
+LLM	OpenAI GPT-4o-mini
+Backend	FastAPI & Uvicorn
+Frontend	Streamlit
+External APIs	SerpApi (Real-time Search)
+🔌 API & Integration
+This project is "API-ready," allowing easy integration with Telegram bots or external web applications.
+
+Interactive API Documentation (Swagger UI) is available at: http://127.0.0.1:8000/docs
+
 Example Request:
+
+JSON
+POST /chat
 {
-  "text": "What is your return policy?"
+  "text": "Do you deliver to New York and accept Venmo?"
 }
 Example Response:
+
+JSON
 {
-  "answer": "You can return items within 14 days if the packaging and receipt are preserved."
+  "answer": "Yes, we ship to all major hubs including New York City. We also support direct payments via Venmo."
 }
-📄 Documentation
-Interactive API docs (Swagger UI) are available automatically at:
-http://127.0.0.1:8000/docs
+⚙️ Installation & Setup
+Clone & Environment:
+
+Bash
+git clone https://github.com/ildar-dev/ildar-ai-hub.git
+cd ildar-ai-hub
+Configure Keys: Create a .env file with your OPENAI_API_KEY, PINECONE_API_KEY, and PINECONE_INDEX_NAME.
+
+Ingest Data: Run the ingestion script to sync your faq.txt with the cloud:
+
+Bash
+python ingest.py
+Launch Hub:
+
+Bash
+streamlit run app.py
+Developed by Ildar — AI Engineer based in Israel, specializing in Agentic Workflows and Scalable RAG Architectures.

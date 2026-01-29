@@ -1,98 +1,158 @@
 import os
+import time
 import requests
 from bs4 import BeautifulSoup
+from typing import Literal
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, MessagesState, START, END
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt import ToolNode
+from langgraph.checkpoint.memory import MemorySaver
 from serpapi import GoogleSearch
 
+# Load environment variables (OPENAI_API_KEY, SERPAPI_API_KEY)
 load_dotenv()
 
-# --- Tool 1: Search ---
+# --- Tools Definition ---
+
 @tool
 def search_google(query: str):
-    """Searches for a list of links and news on Google. Returns snippets and links."""
-    print(f"🕵️  Searching in Google: {query}")
+    """Searches Google for real-time information and news using SerpApi."""
     params = {
         "engine": "google",
         "q": query,
         "api_key": os.getenv("SERPAPI_API_KEY")
     }
     search = GoogleSearch(params)
-    results = search.get_dict()
-    
-    organic_results = results.get("organic_results", [])
+    results = search.get_dict().get("organic_results", [])
     output = []
-    # Take the top-3 results with links
-    for r in organic_results[:3]:
-        title = r.get("title", "No title")
-        link = r.get("link", "")
-        snippet = r.get("snippet", "")
-        output.append(f"Title: {title}\nLink: {link}\nSummary: {snippet}\n")
-    
-    return "\n---\n".join(output) if output else "Nothing found."
+    # Limit to top 3 results to save tokens
+    for r in results[:3]:
+        output.append(f"Title: {r.get('title')}\nLink: {r.get('link')}\nSnippet: {r.get('snippet')}\n")
+    return "\n---\n".join(output) if output else "No results found."
 
-# --- Tool 2: Webpage Reading (NEW) ---
 @tool
 def scrape_webpage(url: str):
-    """Reads the full text of a webpage from the link. Use this to get details."""
-    print(f"📖 Reading article: {url}")
+    """Extracts text content from a URL for deep analysis. 
+    Reduced character limit to prevent RateLimitErrors (429)."""
     try:
-        # Pretending to be a regular browser
         headers = {"User-Agent": "Mozilla/5.0"}
         response = requests.get(url, headers=headers, timeout=10)
-        
         soup = BeautifulSoup(response.content, "html.parser")
         
-        # Removing scripts and styles, keeping only text
+        # Remove non-text elements
         for script in soup(["script", "style"]):
             script.extract()
             
-        text = soup.get_text()
-        # Limiting the length (to not overload the model), taking the first 8000 characters
-        return "Article text:\n" + " ".join(text.split())[:8000]
+        # FIX: Reduced limit from 8000 to 4000 to stay within Token Per Minute (TPM) limits
+        content = " ".join(soup.get_text().split())
+        return "Content snippet:\n" + content[:4000] 
     except Exception as e:
-        return f"Error while reading: {e}"
+        return f"Scraping error: {e}"
 
-# --- Agent Graph ---
-llm = ChatOpenAI(model="gpt-4o-mini")
+# --- Agent Nodes ---
 
-# NOW THE AGENT HAS TWO TOOLS:
-tools = [search_google, scrape_webpage] 
+# Initialize LLM (gpt-4o-mini is cost-effective but has strict rate limits)
+llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+tools = [search_google, scrape_webpage]
 
-llm_with_tools = llm.bind_tools(tools)
+def researcher_node(state: MessagesState):
+    """Handles information gathering and report drafting."""
+    # FIX: Add a small delay to avoid hitting OpenAI Rate Limits
+    time.sleep(1) 
+    
+    system_prompt = SystemMessage(content=(
+        "You are an Expert Researcher. Gather information using tools and write a structured report. "
+        "If the Reviewer provides feedback, update your report to meet the requirements."
+    ))
+    messages = [system_prompt] + state["messages"]
+    response = llm.bind_tools(tools).invoke(messages)
+    return {"messages": [response]}
 
-def agent_node(state: MessagesState):
-    return {"messages": [llm_with_tools.invoke(state["messages"])]}
+def reviewer_node(state: MessagesState):
+    """Reviews the report and ensures quality and accuracy."""
+    # FIX: Add a delay to let the Token Per Minute (TPM) quota reset
+    time.sleep(1) 
+    
+    # Calculate conversation depth
+    turns = len(state["messages"])
+    
+    # Adaptive feedback based on turn count to prevent infinite loops
+    feedback_instruction = (
+        "Focus only on major issues. If the report is generally good, approve it." 
+        if turns > 6 else 
+        "Be very strict. Check for depth, citations, and clarity."
+    )
+
+    system_prompt = SystemMessage(content=(
+        "You are a Senior Content Editor. "
+        f"{feedback_instruction} "
+        "To end the process, you MUST start your message with the word 'FINAL_APPROVED'. "
+        "Otherwise, provide specific feedback for the Researcher."
+    ))
+    
+    messages = [system_prompt] + state["messages"]
+    response = llm.invoke(messages)
+    return {"messages": [response]}
+
+# --- Graph Routing Logic ---
+
+def routing_logic(state: MessagesState) -> Literal["tools", "reviewer", END]:
+    """Determines the next step in the multi-agent workflow."""
+    last_msg = state["messages"][-1]
+    
+    # If the LLM called a tool, go to the tools node
+    if last_msg.tool_calls:
+        return "tools"
+    
+    # If the Reviewer gave final approval, terminate the process
+    if "FINAL_APPROVED" in last_msg.content:
+        return END
+        
+    # Otherwise, send it back for review/revision
+    return "reviewer"
+
+# --- Build the LangGraph Workflow ---
 
 workflow = StateGraph(MessagesState)
-workflow.add_node("agent", agent_node)
-workflow.add_node("tools", ToolNode(tools))
 
-workflow.add_edge(START, "agent")
-workflow.add_conditional_edges("agent", tools_condition)
-workflow.add_edge("tools", "agent")
+# Define a retry policy to automatically handle 429 errors from OpenAI
+retry_policy = {"max_attempts": 3}
 
-app = workflow.compile()
+# Add nodes with the defined retry policy
+workflow.add_node("researcher", researcher_node, retry_policy=retry_policy)
+workflow.add_node("reviewer", reviewer_node, retry_policy=retry_policy)
+workflow.add_node("tools", ToolNode(tools), retry_policy=retry_policy)
 
-# --- Execution ---
+# Set up edges and conditional routing
+workflow.add_edge(START, "researcher")
+workflow.add_conditional_edges("researcher", routing_logic)
+workflow.add_edge("tools", "researcher")
+workflow.add_edge("reviewer", "researcher")
+
+# Compile the graph with memory support for session persistence
+app = workflow.compile(checkpointer=MemorySaver())
+
+# --- Terminal Execution Block ---
+# This block only runs if you call 'python researcher.py' directly,
+# but it won't interfere when imported into app.py.
+
 if __name__ == "__main__":
-    # Setting the research topic
-    query = "Gather information about GPT-5: expected release date, new features and rumors. Make a structured report."
-    print(f"🚀 Starting research: {query}\n")
+    config = {"configurable": {"thread_id": "terminal_test_1"}}
+    print("🔍 AI Researcher (Terminal Mode) is ready.")
     
-    # Running the agent
-    final_state = app.invoke({"messages": [HumanMessage(content=query)]})
-    report = final_state["messages"][-1].content
-    
-    print("\n🤖 Result:")
-    print(report)
-    
-    # Saving to file
-    with open("report.md", "w", encoding="utf-8") as f:
-        f.write(f"# Research Report\n\n**Topic:** {query}\n\n---\n\n{report}")
+    while True:
+        user_query = input("\nEnter research topic (or 'exit'): ")
+        if user_query.lower() in ["exit", "quit", "q"]:
+            break
+            
+        inputs = {"messages": [HumanMessage(content=user_query)]}
+        print("\n🚀 Starting research workflow...")
         
-    print("\n📄 Report successfully saved to 'report.md'!")
+        # Stream events to see real-time progress in the terminal
+        for event in app.stream(inputs, config=config):
+            for node, values in event.items():
+                print(f"\n--- [ NODE: {node.upper()} ] ---")
+                print(values["messages"][-1].content[:500] + "...") # Show snippet of the step
