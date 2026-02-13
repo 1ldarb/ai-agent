@@ -101,30 +101,41 @@ else:
             # Use st.status to prevent the UI from "freezing" during long agent loops
             with st.status("🚀 Initializing Multi-Agent Workflow...", expanded=True) as status:
                 full_response = ""
+                # Создаем контейнер для отчета, который будет обновляться в реальном времени
+                report_placeholder = st.empty()
+                
                 try:
-                    # Thread ID ensures memory continuity for the LangGraph agent
-                    config = {"configurable": {"thread_id": "streamlit_research_session"}}
+                    # Изменен ID треда для чистого запуска сессии
+                    config = {"configurable": {"thread_id": "st_research_v3"}}
                     inputs = {"messages": [HumanMessage(content=prompt)]}
                     
-                    # .stream() allows us to track which node is currently working
+                    # .stream() позволяет нам отслеживать каждый шаг графа
                     for event in researcher_app.stream(inputs, config=config):
                         for node, values in event.items():
-                            # Update the UI status with the current node name (e.g., RESEARCHER, TOOLS)
+                            # Обновляем текст статуса текущим узлом
                             status.update(label=f"🛠️ Active Node: **{node.upper()}**", state="running")
                             
-                            # Update response based on the latest message from the graph
                             if "messages" in values:
-                                full_response = values["messages"][-1].content
+                                content = values["messages"][-1].content
+                                # Если узел RESEARCHER выдал длинный текст (отчет)
+                                if node == "researcher" and len(content) > 100:
+                                    full_response = content
+                                    # Мгновенно выводим текст в браузер
+                                    report_placeholder.markdown(full_response)
                     
-                    # Finalize the status once the reviewer approves
+                    # Финализируем плашку статуса
                     status.update(label="✅ Research Completed Successfully!", state="complete", expanded=False)
-                    st.markdown(full_response)
+                    
+                    # Если по какой-то причине текст не отобразился в цикле, выводим его здесь
+                    if full_response:
+                        report_placeholder.markdown(full_response)
+                    else:
+                        st.warning("Could not capture the report content.")
                 
                 except Exception as e:
-                    # Provide visual error feedback if the graph fails
                     status.update(label="❌ Workflow Error", state="error")
-                    full_response = f"An internal error occurred: {str(e)}"
-                    st.error(full_response)
+                    st.error(f"An internal error occurred: {str(e)}")
         
-        # Add final research report to history
-        st.session_state.research_messages.append({"role": "assistant", "content": full_response})
+        # Сохраняем финальный отчет в историю чата
+        if full_response:
+            st.session_state.research_messages.append({"role": "assistant", "content": full_response})

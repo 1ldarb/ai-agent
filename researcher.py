@@ -118,26 +118,28 @@ def routing_logic(state: MessagesState) -> Literal["tools", "reviewer", END]:
 
 workflow = StateGraph(MessagesState)
 
-# Define a retry policy to automatically handle 429 errors from OpenAI
-retry_policy = {"max_attempts": 3}
+# Добавляем узлы без retry_policy (чтобы избежать ошибки 'str' object has no attribute 'retry_on')
+workflow.add_node("researcher", researcher_node)
+workflow.add_node("reviewer", reviewer_node)
+workflow.add_node("tools", ToolNode(tools))
 
-# Add nodes with the defined retry policy
-workflow.add_node("researcher", researcher_node, retry_policy=retry_policy)
-workflow.add_node("reviewer", reviewer_node, retry_policy=retry_policy)
-workflow.add_node("tools", ToolNode(tools), retry_policy=retry_policy)
-
-# Set up edges and conditional routing
+# Настраиваем ребра и условную маршрутизацию
 workflow.add_edge(START, "researcher")
+
+# Researcher может вызвать инструменты ИЛИ пойти к Reviewer (через routing_logic)
 workflow.add_conditional_edges("researcher", routing_logic)
+
+# После инструментов всегда возвращаемся к Researcher
 workflow.add_edge("tools", "researcher")
-workflow.add_edge("reviewer", "researcher")
+
+# ИСПРАВЛЕНО: Теперь Reviewer тоже использует routing_logic, чтобы выйти (END) 
+# при наличии 'FINAL_APPROVED' или вернуться к Researcher
+workflow.add_conditional_edges("reviewer", routing_logic)
 
 # Compile the graph with memory support for session persistence
 app = workflow.compile(checkpointer=MemorySaver())
 
 # --- Terminal Execution Block ---
-# This block only runs if you call 'python researcher.py' directly,
-# but it won't interfere when imported into app.py.
 
 if __name__ == "__main__":
     config = {"configurable": {"thread_id": "terminal_test_1"}}
